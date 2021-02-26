@@ -22,7 +22,9 @@ public class PlayerMovement : MonoBehaviour
     bool isGrounded = true;
     bool isWalking = false;
     bool isJumping = false;
+    bool isRunning = false;
     bool isSoundPlaying = false;
+    bool isSoundJumpPlaying = false;
 
      public bool IsGrounded { get; }
 
@@ -41,15 +43,23 @@ public class PlayerMovement : MonoBehaviour
     }
 
     private void Move() {
+        if (isSoundJumpPlaying && !playerSound.audioSource.isPlaying)
+        {
+            isSoundJumpPlaying = false;
+        }
+
         if (isGrounded && velocity.y < 0)
         {
             velocity.y = -2f;
 
             if (isJumping)
             {
+                StopCoroutine("PlayStepSound");
                 isJumping = false;
-                playerSound.audioSource.clip = playerSound.GetNextSound();
+                playerSound.audioSource.clip = playerSound.GetJumpLandingSound();
                 playerSound.audioSource.Play();
+
+                isSoundJumpPlaying = true;
             }
         }
 
@@ -61,7 +71,31 @@ public class PlayerMovement : MonoBehaviour
 
         Vector3 move = transform.right * x + transform.forward * z;
 
-        controller.Move(move * speed * Time.deltaTime);
+        if (Input.GetKey(KeyCode.LeftControl) && isWalking)
+        {   
+            Debug.Log("Corriendo");
+            isWalking = false;
+            if (!isRunning)
+            {
+                StopCoroutine("PlayStepSound");
+                isSoundPlaying = false;
+            }
+
+            isRunning = true;
+            controller.Move(move * speed * speed * Time.deltaTime);
+        }
+        else
+        {
+            Debug.Log("Andando");
+            if (isRunning)
+            {
+                StopCoroutine("PlayStepSound");
+                isSoundPlaying = false;
+            }
+            
+            isRunning = false;
+            controller.Move(move * speed * Time.deltaTime);
+        }
 
         
         if (Input.GetButtonDown("Jump") && isGrounded)
@@ -70,7 +104,11 @@ public class PlayerMovement : MonoBehaviour
             isJumping = true;
         }
 
-        if (isGrounded && isWalking && !isSoundPlaying)
+        if (isGrounded && isWalking && !isSoundPlaying && !isSoundJumpPlaying)
+        {
+            PlayFootSound();
+        }
+        if (isGrounded && isRunning && !isSoundPlaying && !isSoundJumpPlaying)
         {
             PlayFootSound();
         }
@@ -83,7 +121,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void PlayFootSound()
     {
-        StartCoroutine("PlayStepSound", footStepTimer);
+        float time = (isRunning ? footStepTimer / 2 : footStepTimer);
+        StartCoroutine("PlayStepSound", time);
     }
 
     private IEnumerator PlayStepSound(float timer)
